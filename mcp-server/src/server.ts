@@ -1,5 +1,5 @@
 import express from "express";
-import { createMcpServer } from "./mcp";
+import { createMcpServer } from "./mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { randomUUID } from "crypto";
 const app = express();
@@ -54,6 +54,14 @@ app.post("/mcp", async (req, res) => {
       });
     }
   }
+});
+
+app.get("/status", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "meter-demo-mcp",
+    version: "1.0.0",
+  });
 });
 
 app.listen(3000, () => {
