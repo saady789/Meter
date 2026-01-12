@@ -1,0 +1,7 @@
+ Wallet Details                               │
+   │                                                   │
+   │   • Name: saad                                    │
+   │   • Environment: sandbox                          │
+   │   • Address: 13dX5yfZfi2kWjGS8VeGApjuWWENJhkTUp   │
+   │                                                   │
+   │   ✓ This wallet is now active 
