@@ -33,3 +33,38 @@ model Tool {
   @@unique([providerId, toolName])
 }
 
+model Payment {
+  id            String   @id @default(cuid())
+
+  // Foreign keys only (NO Prisma relations)
+  providerId    String
+  toolId        Int
+
+  // Wallets (public addresses only)
+  fromAddress   String   // AGENT_PUBLIC_KEY
+  toAddress     String   // provider.walletPublicKey
+
+  // Amounts
+  amountCents   Int
+  amountDecimal Float
+  currency      String   // "MNEE"
+
+  // On-chain proof
+  ticketId      String?   @unique
+  status        PaymentStatus
+
+  // Metadata
+  createdAt     DateTime @default(now())
+
+  @@index([providerId])
+  @@index([toolId])
+  @@index([fromAddress])
+  @@index([toAddress])
+}
+
+
+
+enum PaymentStatus {
+  SUCCESS
+  FAILED
+}

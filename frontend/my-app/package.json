@@ -9,7 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@langchain/mcp-adapters": "^1.1.1",
+    "@langchain/openai": "^1.2.1",
     "@mnee/ts-sdk": "^1.0.3",
+    "langchain": "^1.2.7",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

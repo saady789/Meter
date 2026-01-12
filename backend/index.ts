@@ -142,17 +142,106 @@ app.post("/mcp/:providerId", async (req, res) => {
   const { providerId } = req.params;
   const body = req.body;
 
-  console.log("Received MCP request for provider:", body);
+  console.log("Received MCP request:", body);
 
   const provider = await prisma.provider.findUnique({
     where: { id: providerId },
-    include: { tools: true }, // we need prices here
+    include: { tools: true },
   });
 
   if (!provider) {
     return res.status(404).json({ error: "Provider not found" });
   }
 
+  // 1. HANDLE MCP INITIALIZE
+  if (body?.method === "initialize") {
+    const upstreamInit = await axios.post(provider.mcpUrl, body, {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, application/mcp+json, text/event-stream",
+      },
+      validateStatus: () => true,
+    });
+
+    const newSessionId = upstreamInit.headers["mcp-session-id"];
+    if (newSessionId) {
+      mcpSessions.set(providerId, newSessionId);
+    }
+
+    return res.status(200).json(upstreamInit.data);
+  }
+
+  // 2. TOOL CALL PAYMENT GATE
+  if (body?.method === "tools/call") {
+    console.log("Tool call detected");
+
+    const toolName = body?.params?.name;
+    const tool = provider.tools.find((t) => t.toolName === toolName);
+
+    if (!tool) {
+      return res.status(400).json({
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: -32602,
+          message: "Unknown tool",
+        },
+      });
+    }
+
+    const amount = tool.priceCents / 100;
+
+    const recipients = [
+      {
+        address: provider.walletPublicKey,
+        amount,
+      },
+    ];
+
+    try {
+      const response = await mnee.transfer(
+        recipients,
+        process.env.AGENT_PRIVATE_KEY!
+      );
+
+      await prisma.payment.create({
+        data: {
+          providerId: provider.id,
+          toolId: tool.id,
+          fromAddress: process.env.AGENT_PUBLIC_KEY!,
+          toAddress: provider.walletPublicKey,
+          amountCents: tool.priceCents,
+          amountDecimal: amount,
+          currency: "MNEE",
+          ticketId: response.ticketId,
+          status: "SUCCESS",
+        },
+      });
+
+      console.log(
+        `Payment success. Ticket ${response.ticketId}. ${amount} MNEE sent to ${provider.walletPublicKey}`
+      );
+    } catch (err) {
+      console.error("Payment failed", err);
+
+      return res.status(200).json({
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: 40201,
+          message: "Payment failed",
+          data: {
+            tool: toolName,
+            priceCents: tool.priceCents,
+            wallet: provider.walletPublicKey,
+            currency: "MNEE",
+          },
+        },
+      });
+    }
+  }
+
+  // 3. FORWARD TO REAL MCP SERVER
   const sessionId = mcpSessions.get(providerId);
 
   const upstream = await axios.post(provider.mcpUrl, body, {
@@ -164,39 +253,6 @@ app.post("/mcp/:providerId", async (req, res) => {
     validateStatus: () => true,
   });
 
-  // Capture session id on initialize
-  const newSessionId = upstream.headers["mcp-session-id"];
-  if (body?.method === "initialize" && newSessionId) {
-    mcpSessions.set(providerId, newSessionId);
-  }
-
-  if (body?.method === "tools/call") {
-    const { name } = body.params;
-
-    const tool = provider.tools.find((t) => t.toolName === name);
-    const hasValidPayment = (body: any) => {
-      return false;
-    };
-    if (!hasValidPayment(body)) {
-      return res.status(200).json({
-        jsonrpc: "2.0",
-        id: body.id,
-        error: {
-          code: 40201,
-          message: "Payment required",
-          data: {
-            tool: name,
-            priceCents: tool?.priceCents,
-            wallet: provider.walletPublicKey,
-            currency: "MNEE",
-            retryable: true,
-          },
-        },
-      });
-    }
-  }
-
-  // Default pass through for all other MCP methods
   return res.status(200).json(upstream.data);
 });
 
