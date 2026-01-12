@@ -292,6 +292,42 @@ app.get("/mcp/:providerId", async (req, res) => {
   Readable.fromWeb(upstream.body as any).pipe(res);
 });
 
+app.get("/wallet/balance", async (req, res) => {
+  try {
+    const { address } = req.query;
+
+    if (!address || typeof address !== "string") {
+      return res.status(400).json({ error: "Missing wallet address" });
+    }
+
+    const raw = await mnee.balance(address);
+
+    res.json({
+      address,
+      amount: raw.amount,
+      decimalAmount: raw.decimalAmount,
+      currency: "MNEE",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch wallet balance" });
+  }
+});
+
+app.get("/payments", async (req, res) => {
+  try {
+    // since there is only one provider, we fetch all
+    const payments = await prisma.payment.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
+
+    res.json({ payments });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
 app.listen(PORT, () => {
   console.log(`✅ Server listening on http://localhost:${PORT}`);
 });
