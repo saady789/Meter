@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { createAgent } from "langchain";
 
-const MCP_URL = "https://demo-mcp.up.railway.app/mcp";
+const MCP_URL = "http://localhost:3001/mcp/mykey";
 
 const client = new MultiServerMCPClient({
   meter: {
@@ -14,7 +14,7 @@ const client = new MultiServerMCPClient({
 });
 
 const tools = await client.getTools();
-console.log("Loaded tools:", tools);
+console.dir(tools, { depth: null });
 
 const llm = new ChatOpenAI({
   temperature: 0,

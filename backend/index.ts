@@ -1,9 +1,14 @@
 import express from "express";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import cors from "cors";
+import axios from "axios";
 import { prisma } from "./prisma";
-import Mnee from "@mnee/ts-sdk";
-const config = {
+import { Readable } from "node:stream";
+const mcpSessions = new Map<string, string>();
+
+import Mnee, { type SdkConfig } from "@mnee/ts-sdk";
+
+const config: SdkConfig = {
   environment: "sandbox", // or 'production'
   apiKey: "2f34b06c0a17aa40f2cce70ace9db3e6",
 };
@@ -131,6 +136,104 @@ app.post("/register-service", async (req, res) => {
       error: "Failed to register MCP service",
     });
   }
+});
+
+app.post("/mcp/:providerId", async (req, res) => {
+  const { providerId } = req.params;
+  const body = req.body;
+
+  console.log("Received MCP request for provider:", body);
+
+  const provider = await prisma.provider.findUnique({
+    where: { id: providerId },
+    include: { tools: true }, // we need prices here
+  });
+
+  if (!provider) {
+    return res.status(404).json({ error: "Provider not found" });
+  }
+
+  const sessionId = mcpSessions.get(providerId);
+
+  const upstream = await axios.post(provider.mcpUrl, body, {
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, application/mcp+json, text/event-stream",
+      ...(sessionId ? { "mcp-session-id": sessionId } : {}),
+    },
+    validateStatus: () => true,
+  });
+
+  // Capture session id on initialize
+  const newSessionId = upstream.headers["mcp-session-id"];
+  if (body?.method === "initialize" && newSessionId) {
+    mcpSessions.set(providerId, newSessionId);
+  }
+
+  if (body?.method === "tools/call") {
+    const { name } = body.params;
+
+    const tool = provider.tools.find((t) => t.toolName === name);
+    const hasValidPayment = (body: any) => {
+      return false;
+    };
+    if (!hasValidPayment(body)) {
+      return res.status(200).json({
+        jsonrpc: "2.0",
+        id: body.id,
+        error: {
+          code: 40201,
+          message: "Payment required",
+          data: {
+            tool: name,
+            priceCents: tool?.priceCents,
+            wallet: provider.walletPublicKey,
+            currency: "MNEE",
+            retryable: true,
+          },
+        },
+      });
+    }
+  }
+
+  // Default pass through for all other MCP methods
+  return res.status(200).json(upstream.data);
+});
+
+app.get("/mcp/:providerId", async (req, res) => {
+  const { providerId } = req.params;
+
+  const provider = await prisma.provider.findUnique({
+    where: { id: providerId },
+  });
+
+  if (!provider) {
+    return res.status(404).end();
+  }
+
+  console.log("provider is ", provider);
+
+  const sessionId = mcpSessions.get(providerId);
+
+  const upstream = await fetch(provider.mcpUrl, {
+    method: "GET",
+    headers: {
+      Accept: "text/event-stream",
+      ...(sessionId ? { "mcp-session-id": sessionId } : {}),
+    },
+  });
+
+  if (!upstream.body) {
+    return res.status(502).end();
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+
+  Readable.fromWeb(upstream.body as any).pipe(res);
 });
 
 app.listen(PORT, () => {
