@@ -3,7 +3,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 import { createAgent } from "langchain";
 
-const MCP_URL = "http://localhost:3001/mcp/mywallet";
+const MCP_URL = "http://localhost:3001/mcp/mytools";
 
 export async function POST(req: NextRequest) {
   const { message } = await req.json();
