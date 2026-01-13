@@ -1,17 +1,3 @@
-//    ╭─────────────────────  Private Key  ──────────────────────╮
-//    │                                                          │
-//    │   🔑 Private Key Export                                  │
-//    │                                                          │
-//    │   💰 Wallet: saadyagent                                  │
-//    │   • Environment: sandbox                                 │
-//    │   • Address: 1C6HcLAt7azWL43mMjtLwvrdExeKgdqXCh          │
-//    │                                                          │
-//    │   🔒 WIF Private Key:                                    │
-//    │   L198NT9Wavm8KGRb5CYzfRmdy8AinvaAkjrWDXYMZoKvHpqK73aU   │
-//    │                                                          │
-//    │   ⚠️  KEEP THIS KEY SAFE!                                │
-//    │   Never share it with anyone!
-
 import Mnee, { type SdkConfig } from "@mnee/ts-sdk";
 
 const config: SdkConfig = {
